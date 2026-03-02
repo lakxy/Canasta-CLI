@@ -10,12 +10,13 @@ import (
 
 // mockOrchestrator records calls for testing
 type mockOrchestrator struct {
-	calls       []string
-	execOutput  string
-	execErr     error
-	copyToErr   error
-	startErr    error
-	stopErr     error
+	calls          []string
+	execOutput     string
+	execErr        error
+	copyToErr      error
+	startErr       error
+	stopErr        error
+	checkRunningErr error
 }
 
 func (m *mockOrchestrator) CheckDependencies() error                              { return nil }
@@ -52,7 +53,7 @@ func (m *mockOrchestrator) ExecStreaming(installPath, service, command string) e
 }
 
 func (m *mockOrchestrator) CheckRunningStatus(instance config.Installation) error {
-	return nil
+	return m.checkRunningErr
 }
 
 func (m *mockOrchestrator) CopyFrom(installPath, service, containerPath, hostPath string) error {
@@ -180,6 +181,55 @@ func TestStopAndStartStopError(t *testing.T) {
 		if call == "Start" {
 			t.Error("Start should not be called when Stop fails")
 		}
+	}
+}
+
+func TestEnsureRunningAlreadyRunning(t *testing.T) {
+	mock := &mockOrchestrator{}
+	instance := config.Installation{Id: "test", Path: "/tmp/test"}
+
+	err := EnsureRunning(mock, instance)
+	if err != nil {
+		t.Fatalf("EnsureRunning() error = %v", err)
+	}
+
+	for _, call := range mock.calls {
+		if call == "Start" {
+			t.Error("Start should not be called when containers are already running")
+		}
+	}
+}
+
+func TestEnsureRunningNotRunning(t *testing.T) {
+	mock := &mockOrchestrator{checkRunningErr: fmt.Errorf("not running")}
+	instance := config.Installation{Id: "test", Path: "/tmp/test"}
+
+	err := EnsureRunning(mock, instance)
+	if err != nil {
+		t.Fatalf("EnsureRunning() error = %v", err)
+	}
+
+	hasStart := false
+	for _, call := range mock.calls {
+		if call == "Start" {
+			hasStart = true
+		}
+	}
+	if !hasStart {
+		t.Error("expected Start to be called when containers are not running")
+	}
+}
+
+func TestEnsureRunningStartFails(t *testing.T) {
+	mock := &mockOrchestrator{
+		checkRunningErr: fmt.Errorf("not running"),
+		startErr:        fmt.Errorf("start failed"),
+	}
+	instance := config.Installation{Id: "test", Path: "/tmp/test"}
+
+	err := EnsureRunning(mock, instance)
+	if err == nil {
+		t.Fatal("expected error when Start fails")
 	}
 }
 

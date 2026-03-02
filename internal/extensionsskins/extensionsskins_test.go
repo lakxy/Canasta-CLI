@@ -288,6 +288,34 @@ func TestDisableRemovesFileWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestDisableSkin(t *testing.T) {
+	inst := newTestInstance(t)
+	_ = Enable("Vector", "", inst, skinConstants)
+
+	if err := Disable("Vector", "", inst, skinConstants); err != nil {
+		t.Fatalf("Disable skin: %v", err)
+	}
+
+	cfg, _ := readConfig(configPath(inst.Path, ""))
+	if slices.Contains(cfg.Skins, "Vector") {
+		t.Error("Vector should be removed from skins")
+	}
+}
+
+func TestDisablePerWikiExtension(t *testing.T) {
+	inst := newTestInstance(t)
+	_ = Enable("Cite", "docs", inst, extConstants)
+
+	if err := Disable("Cite", "docs", inst, extConstants); err != nil {
+		t.Fatalf("Disable per-wiki: %v", err)
+	}
+
+	path := configPath(inst.Path, "docs")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("per-wiki settings.yaml should be deleted when last entry is removed")
+	}
+}
+
 func TestCheckEnabled(t *testing.T) {
 	inst := newTestInstance(t)
 	_ = Enable("Cite", "", inst, extConstants)
@@ -303,5 +331,18 @@ func TestCheckEnabled(t *testing.T) {
 	_, err = CheckEnabled("Missing", "", inst, extConstants)
 	if err == nil {
 		t.Error("expected error for non-enabled extension")
+	}
+}
+
+func TestCheckEnabledSkin(t *testing.T) {
+	inst := newTestInstance(t)
+	_ = Enable("Vector", "", inst, skinConstants)
+
+	name, err := CheckEnabled("Vector", "", inst, skinConstants)
+	if err != nil {
+		t.Fatalf("CheckEnabled skin: %v", err)
+	}
+	if name != "Vector" {
+		t.Errorf("expected 'Vector', got %q", name)
 	}
 }
